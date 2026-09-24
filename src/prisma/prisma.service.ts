@@ -33,9 +33,10 @@ export class PrismaService
   async onModuleInit() {
     try {
       await this.$connect();
-      this.logger.log(
-        'Successfully connected to PostgreSQL via @prisma/adapter-pg',
+      await this.$executeRawUnsafe(
+        `CREATE UNIQUE INDEX IF NOT EXISTS unique_lead_admin ON users (role) WHERE role = 'LEAD_ADMIN';`,
       );
+      this.logger.log('Successfully connected to PostgreSQL');
     } catch (error) {
       this.logger.error('Failed to connect to PostgreSQL', error);
       throw error;
