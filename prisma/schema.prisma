@@ -11,6 +11,22 @@ enum Role {
   LEAD_ADMIN
 }
 
+enum WbTokenCategory {
+  STANDARD
+  CONTENT
+  ANALYTICS
+  PRICES
+  MARKETPLACE
+  QUESTIONS
+  ADVERTS
+  RECOMMENDATIONS
+  FEEDBACKS_QUESTIONS
+  BUYER_CHAT
+  SUPPLIES
+  RETURNS
+  DOCUMENTS
+}
+
 model User {
   id String @id @default(uuid())
 
@@ -22,4 +38,40 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+model Store {
+  id String @id @default(uuid())
+
+  name        String  @unique
+  inn         String?
+  description String?
+  isActive    Boolean @default(true)
+
+  tokens WbApiToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("stores")
+}
+
+model WbApiToken {
+  id String @id @default(uuid())
+
+  storeId  String
+  store    Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  token     String
+  tokenName String
+  category  WbTokenCategory
+
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, category])
+  @@map("wb_api_tokens")
 }
