@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CommunicationsService } from './communications.service';
 import {
@@ -20,6 +21,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
+@ApiTags('Communications')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.LEAD_ADMIN, Role.ADMIN)
 @Controller('communications')
@@ -122,7 +125,7 @@ export class CommunicationsController {
   async patchClaim(
     @Query('storeId') storeId: string,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
   ) {
     return this.commsService.patchClaim(storeId, id, body);
   }

@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { WbTokenCategory } from '@prisma/client';
 import { WbClientService } from '../wb-client/wb-client.service';
+import { ensureStoreId } from '../common/utils';
 import {
   GetFeedbacksDto,
   AnswerFeedbackDto,
@@ -69,11 +70,12 @@ export class CommunicationsService {
       dateFrom,
       dateTo,
     } = dto;
-    const query: Record<string, any> = {
-      isAnswered: isAnswered ?? false,
-      take,
-      skip,
-    };
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {
+        isAnswered: isAnswered ?? false,
+        take,
+        skip,
+      };
     if (nmId) query.nmId = nmId;
     if (order) query.order = order;
     if (dateFrom) query.dateFrom = dateFrom;
@@ -100,7 +102,7 @@ export class CommunicationsService {
   }
 
   async getQuestionById(storeId: string, id: string) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'feedbacks',
@@ -112,7 +114,7 @@ export class CommunicationsService {
   }
 
   async answerQuestion(storeId: string, dto: AnswerQuestionDto) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'feedbacks',
@@ -157,11 +159,12 @@ export class CommunicationsService {
       dateFrom,
       dateTo,
     } = dto;
-    const query: Record<string, any> = {
-      isAnswered: isAnswered ?? false,
-      take,
-      skip,
-    };
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {
+        isAnswered: isAnswered ?? false,
+        take,
+        skip,
+      };
     if (nmId) query.nmId = nmId;
     if (order) query.order = order;
     if (dateFrom) query.dateFrom = dateFrom;
@@ -188,7 +191,7 @@ export class CommunicationsService {
   }
 
   async getFeedbackById(storeId: string, id: string) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'feedbacks',
@@ -200,7 +203,7 @@ export class CommunicationsService {
   }
 
   async answerFeedback(storeId: string, dto: AnswerFeedbackDto) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'feedbacks',
@@ -216,7 +219,7 @@ export class CommunicationsService {
   // -------------------------------------------------------------
 
   async getChats(storeId: string) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'chat',
@@ -227,7 +230,7 @@ export class CommunicationsService {
   }
 
   async getChatEvents(storeId: string, next?: number) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'chat',
@@ -239,7 +242,7 @@ export class CommunicationsService {
   }
 
   async sendChatMessage(storeId: string, dto: SendChatMessageDto) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'chat',
@@ -255,7 +258,8 @@ export class CommunicationsService {
   // -------------------------------------------------------------
 
   async getClaims(storeId?: string, isArchive?: boolean) {
-    const query: Record<string, any> = {};
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {};
     if (isArchive !== undefined) query.is_archive = isArchive;
 
     if (storeId && storeId !== 'all') {
@@ -278,8 +282,12 @@ export class CommunicationsService {
     });
   }
 
-  async patchClaim(storeId: string, claimId: string, body: any) {
-    this.ensureStoreId(storeId);
+  async patchClaim(
+    storeId: string,
+    claimId: string,
+    body: Record<string, unknown>,
+  ) {
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'returns',
@@ -289,13 +297,5 @@ export class CommunicationsService {
       query: { id: claimId },
       body,
     });
-  }
-
-  private ensureStoreId(storeId?: string) {
-    if (!storeId || storeId === 'all') {
-      throw new BadRequestException(
-        'Для этой операции необходимо указать конкретный storeId',
-      );
-    }
   }
 }

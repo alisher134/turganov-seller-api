@@ -3,21 +3,45 @@ import { BadRequestException } from '@nestjs/common';
 import { ItemsService } from './items.service';
 import { WbClientService } from '../wb-client/wb-client.service';
 
+import {
+  CardsService,
+  PricesService,
+  WarehousesService,
+  ContentDirectoriesService,
+} from './services';
+
 describe('ItemsService', () => {
   let service: ItemsService;
   let wbClient: {
     request: jest.Mock;
     executeForAllStores: jest.Mock;
+    requestOrAll: jest.Mock;
   };
 
   beforeEach(async () => {
     wbClient = {
       request: jest.fn(),
       executeForAllStores: jest.fn(),
+      requestOrAll: jest
+        .fn()
+        .mockImplementation((opt: { storeId?: string | null }) => {
+          if (opt.storeId && opt.storeId !== 'all') {
+            return wbClient.request(opt) as Promise<unknown>;
+          }
+          const optionsWithoutStore = { ...opt };
+          delete optionsWithoutStore.storeId;
+          return wbClient.executeForAllStores(
+            optionsWithoutStore,
+          ) as Promise<unknown>;
+        }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        CardsService,
+        PricesService,
+        WarehousesService,
+        ContentDirectoriesService,
         ItemsService,
         { provide: WbClientService, useValue: wbClient },
       ],

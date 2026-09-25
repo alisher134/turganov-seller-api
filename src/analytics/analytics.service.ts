@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { WbTokenCategory } from '@prisma/client';
 import { WbClientService } from '../wb-client/wb-client.service';
+import { ensureStoreId } from '../common/utils';
 import { SalesFunnelDto } from './dto/sales-funnel.dto';
 
 @Injectable()
@@ -70,8 +71,8 @@ export class AnalyticsService {
     });
   }
 
-  async getSearchReport(storeId: string, body: any) {
-    this.ensureStoreId(storeId);
+  async getSearchReport(storeId: string, body: Record<string, unknown>) {
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'analytics',
@@ -82,7 +83,7 @@ export class AnalyticsService {
     });
   }
 
-  async getWbWarehouseStocks(storeId?: string, body?: any) {
+  async getWbWarehouseStocks(storeId?: string, body?: Record<string, unknown>) {
     if (storeId && storeId !== 'all') {
       return this.wbClient.request({
         storeId,
@@ -103,7 +104,10 @@ export class AnalyticsService {
     });
   }
 
-  async getSellerWarehouseStocks(storeId?: string, body?: any) {
+  async getSellerWarehouseStocks(
+    storeId?: string,
+    body?: Record<string, unknown>,
+  ) {
     if (storeId && storeId !== 'all') {
       return this.wbClient.request({
         storeId,
@@ -124,7 +128,7 @@ export class AnalyticsService {
     });
   }
 
-  async getItemRating(storeId?: string, body?: any) {
+  async getItemRating(storeId?: string, body?: Record<string, unknown>) {
     if (storeId && storeId !== 'all') {
       return this.wbClient.request({
         storeId,
@@ -143,13 +147,5 @@ export class AnalyticsService {
       category: WbTokenCategory.ANALYTICS,
       body: body || {},
     });
-  }
-
-  private ensureStoreId(storeId?: string) {
-    if (!storeId || storeId === 'all') {
-      throw new BadRequestException(
-        'Для этой операции необходимо указать конкретный storeId',
-      );
-    }
   }
 }

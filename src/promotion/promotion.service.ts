@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { WbTokenCategory } from '@prisma/client';
 import { WbClientService } from '../wb-client/wb-client.service';
+import { ensureStoreId } from '../common/utils';
 import { GetAdvertsDto } from './dto/get-adverts.dto';
 
 @Injectable()
@@ -28,7 +29,8 @@ export class PromotionService {
 
   async getAdverts(dto: GetAdvertsDto) {
     const { storeId, statuses, paymentType } = dto;
-    const query: Record<string, any> = {};
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {};
     if (statuses) query.statuses = statuses;
     if (paymentType) query.payment_type = paymentType;
 
@@ -72,7 +74,7 @@ export class PromotionService {
   }
 
   async getBudget(storeId: string, campaignId: number) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'promotion',
@@ -84,7 +86,7 @@ export class PromotionService {
   }
 
   async startCampaign(storeId: string, campaignId: number) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'promotion',
@@ -96,7 +98,7 @@ export class PromotionService {
   }
 
   async pauseCampaign(storeId: string, campaignId: number) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'promotion',
@@ -108,7 +110,7 @@ export class PromotionService {
   }
 
   async stopCampaign(storeId: string, campaignId: number) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'promotion',
@@ -120,7 +122,7 @@ export class PromotionService {
   }
 
   async getFullStats(storeId: string, dates: string[]) {
-    this.ensureStoreId(storeId);
+    ensureStoreId(storeId);
     return this.wbClient.request({
       storeId,
       service: 'promotion',
@@ -148,13 +150,5 @@ export class PromotionService {
       method: 'GET',
       category: WbTokenCategory.PRICES,
     });
-  }
-
-  private ensureStoreId(storeId?: string) {
-    if (!storeId || storeId === 'all') {
-      throw new BadRequestException(
-        'Для этой операции необходимо указать конкретный storeId',
-      );
-    }
   }
 }

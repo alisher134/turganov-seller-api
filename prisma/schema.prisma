@@ -34,6 +34,8 @@ model User {
   password String
   role     Role   @default(ADMIN)
 
+  auditLogs AuditLog[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -48,7 +50,8 @@ model Store {
   description String?
   isActive    Boolean @default(true)
 
-  tokens WbApiToken[]
+  tokens    WbApiToken[]
+  auditLogs AuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -66,12 +69,37 @@ model WbApiToken {
   tokenName String
   category  WbTokenCategory
 
-  isActive  Boolean   @default(true)
-  expiresAt DateTime?
+  isActive            Boolean   @default(true)
+  consecutiveFailures Int       @default(0)
+  expiresAt           DateTime?
+  lastUsedAt          DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([storeId, category])
   @@map("wb_api_tokens")
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  action    String
+  module    String
+  details   Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([storeId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

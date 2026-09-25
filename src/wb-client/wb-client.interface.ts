@@ -13,6 +13,13 @@ export interface WbRequestOptions {
   timeoutMs?: number;
 }
 
+export interface WbRequestOrAllOptions extends Omit<
+  WbRequestOptions,
+  'storeId'
+> {
+  storeId?: string | null;
+}
+
 export interface WbMultiStoreResult<T> {
   storeId: string;
   storeName: string;

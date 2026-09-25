@@ -3,6 +3,7 @@ import { PrismaClient, Role } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { hashData } from '../src/common/utils';
+import { encryptToken } from '../src/common/utils/crypto.util';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -13,6 +14,15 @@ if (!connectionString) {
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+const encryptionSecret =
+  process.env.TOKEN_ENCRYPTION_KEY || process.env.JWT_SECRET;
+
+if (!encryptionSecret) {
+  throw new Error(
+    'TOKEN_ENCRYPTION_KEY or JWT_SECRET must be set in environment variables before seeding.',
+  );
+}
 
 async function main() {
   const username = (process.env.INITIAL_ADMIN_USERNAME || 'admin')
@@ -95,14 +105,18 @@ async function main() {
 
       const tokenValue = process.env[storeData.tokenEnv];
       if (tokenValue && !tokenValue.includes('your_token_here')) {
+        const encrypted = encryptToken(tokenValue.trim(), encryptionSecret);
         await prisma.wbApiToken.create({
           data: {
             storeId: createdStore.id,
-            token: tokenValue.trim(),
+            token: encrypted,
             tokenName: 'Основной токен',
             category: 'STANDARD',
           },
         });
+        console.log(
+          `[Seed] Token for "${storeData.name}" encrypted and stored`,
+        );
       }
     }
     console.log('[Seed] Initialized 5 stores for multi-store management');

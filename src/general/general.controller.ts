@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { GeneralService } from './general.service';
 import { GetNewsDto } from './dto/get-news.dto';
@@ -15,6 +16,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
+@ApiTags('General')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('general')
 export class GeneralController {
@@ -73,7 +76,10 @@ export class GeneralController {
 
   @Roles(Role.LEAD_ADMIN)
   @Post('invite')
-  async inviteWbUser(@Query('storeId') storeId: string, @Body() body: any) {
+  async inviteWbUser(
+    @Query('storeId') storeId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
     return this.generalService.inviteWbUser(storeId, body);
   }
 

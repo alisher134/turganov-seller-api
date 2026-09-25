@@ -9,9 +9,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { WbTokenCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { decryptToken } from '../common/utils/crypto.util';
+import { decryptToken, isAllStores, runWithConcurrency } from '../common/utils';
 import { WB_BASE_URLS } from './wb-client.constants';
-import { WbRequestOptions, WbMultiStoreResult } from './wb-client.interface';
+import {
+  WbRequestOptions,
+  WbMultiStoreResult,
+  WbRequestOrAllOptions,
+} from './wb-client.interface';
 
 interface ErrorWithResponse {
   response?: {
@@ -24,6 +28,9 @@ interface ErrorWithResponse {
   stack?: string;
 }
 
+/** Max consecutive 401 failures before auto-deactivating a token */
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 @Injectable()
 export class WbClientService {
   private readonly logger = new Logger(WbClientService.name);
@@ -35,8 +42,29 @@ export class WbClientService {
   ) {}
 
   /**
+   * Returns the encryption secret used for WB API tokens.
+   * Prioritizes TOKEN_ENCRYPTION_KEY, falls back to JWT_SECRET.
+   */
+  private get encryptionSecret(): string {
+    const secret =
+      this.configService.get<string>('TOKEN_ENCRYPTION_KEY') ||
+      this.configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error(
+        'Neither TOKEN_ENCRYPTION_KEY nor JWT_SECRET is configured. Cannot decrypt store tokens.',
+      );
+    }
+    return secret;
+  }
+
+  /**
    * Retrieves and decrypts the active WB API token for a store.
    * Priority: exact category match -> STANDARD -> any active token.
+   *
+   * Validates:
+   * - Store exists and is active
+   * - Token is not expired (expiresAt)
+   * - Token has not exceeded consecutive failure threshold
    */
   async resolveToken(
     storeId: string,
@@ -61,32 +89,109 @@ export class WbClientService {
       );
     }
 
-    if (!store.tokens || store.tokens.length === 0) {
+    // Filter out expired tokens
+    const now = new Date();
+    const validTokens = store.tokens.filter(
+      (t) => !t.expiresAt || t.expiresAt > now,
+    );
+
+    if (!validTokens || validTokens.length === 0) {
+      const expiredCount = store.tokens.length - validTokens.length;
+      const suffix =
+        expiredCount > 0 ? ` (${expiredCount} токен(ов) истекли)` : '';
       throw new BadRequestException(
-        `У магазина "${store.name}" нет настроенных API токенов Wildberries`,
+        `У магазина "${store.name}" нет действующих API токенов Wildberries${suffix}`,
       );
     }
 
     let matchedToken = category
-      ? store.tokens.find((t) => t.category === category)
+      ? validTokens.find((t) => t.category === category)
       : undefined;
 
     if (!matchedToken) {
-      matchedToken = store.tokens.find(
+      matchedToken = validTokens.find(
         (t) => t.category === WbTokenCategory.STANDARD,
       );
     }
 
     if (!matchedToken) {
-      matchedToken = store.tokens[0];
+      matchedToken = validTokens[0];
     }
 
-    const decrypted = decryptToken(
-      matchedToken.token,
-      this.configService.get<string>('JWT_SECRET'),
-    );
+    // Update lastUsedAt
+    await this.prisma.wbApiToken.update({
+      where: { id: matchedToken.id },
+      data: { lastUsedAt: now },
+    });
+
+    const decrypted = decryptToken(matchedToken.token, this.encryptionSecret);
 
     return decrypted.trim();
+  }
+
+  /**
+   * Records a successful WB API call — resets consecutive failure counter.
+   */
+  private async recordTokenSuccess(
+    storeId: string,
+    category?: WbTokenCategory,
+  ): Promise<void> {
+    try {
+      const token = await this.prisma.wbApiToken.findFirst({
+        where: {
+          storeId,
+          isActive: true,
+          category: category || WbTokenCategory.STANDARD,
+        },
+      });
+      if (token && token.consecutiveFailures > 0) {
+        await this.prisma.wbApiToken.update({
+          where: { id: token.id },
+          data: { consecutiveFailures: 0 },
+        });
+      }
+    } catch {
+      // Non-critical — don't let tracking errors break the main flow
+    }
+  }
+
+  /**
+   * Records a 401 failure. Auto-deactivates the token after MAX_CONSECUTIVE_FAILURES.
+   */
+  private async recordTokenFailure(
+    storeId: string,
+    category?: WbTokenCategory,
+  ): Promise<void> {
+    try {
+      const token = await this.prisma.wbApiToken.findFirst({
+        where: {
+          storeId,
+          isActive: true,
+          category: category || WbTokenCategory.STANDARD,
+        },
+      });
+      if (!token) return;
+
+      const newCount = token.consecutiveFailures + 1;
+      const shouldDeactivate = newCount >= MAX_CONSECUTIVE_FAILURES;
+
+      await this.prisma.wbApiToken.update({
+        where: { id: token.id },
+        data: {
+          consecutiveFailures: newCount,
+          ...(shouldDeactivate && { isActive: false }),
+        },
+      });
+
+      if (shouldDeactivate) {
+        this.logger.warn(
+          `[Token Auto-Deactivated] Store "${storeId}", category "${category || 'STANDARD'}" — ` +
+            `${MAX_CONSECUTIVE_FAILURES} consecutive 401 failures. Token deactivated.`,
+        );
+      }
+    } catch {
+      // Non-critical
+    }
   }
 
   /**
@@ -159,6 +264,11 @@ export class WbClientService {
       }
 
       if (!response.ok) {
+        // Track 401 failures for auto-deactivation
+        if (response.status === 401) {
+          await this.recordTokenFailure(storeId, category);
+        }
+
         const parsedRecord =
           typeof responseData === 'object' && responseData !== null
             ? (responseData as Record<string, unknown>)
@@ -199,6 +309,9 @@ export class WbClientService {
         );
       }
 
+      // Successful request — reset consecutive failure counter
+      await this.recordTokenSuccess(storeId, category);
+
       return responseData as T;
     } catch (error: unknown) {
       if (error instanceof HttpException) {
@@ -225,16 +338,41 @@ export class WbClientService {
     }
   }
 
+  /**
+   * Helper that executes a request for a single store if a specific storeId is provided,
+   * or across all active stores if storeId is missing, empty, or 'all'.
+   */
+  async requestOrAll<T = unknown>(
+    options: WbRequestOrAllOptions,
+  ): Promise<T | WbMultiStoreResult<T>[]> {
+    if (!isAllStores(options.storeId)) {
+      return this.request<T>({
+        ...options,
+        storeId: options.storeId as string,
+      });
+    }
+
+    const optionsWithoutStore = { ...options };
+    delete optionsWithoutStore.storeId;
+    return this.executeForAllStores<T>(optionsWithoutStore);
+  }
+
+  /**
+   * Executes a WB API request across all active stores with controlled parallelism.
+   */
   async executeForAllStores<T>(
     options: Omit<WbRequestOptions, 'storeId'>,
+    concurrency = 5,
   ): Promise<WbMultiStoreResult<T>[]> {
     const activeStores = await this.prisma.store.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
 
-    const results = await Promise.allSettled(
-      activeStores.map(async (store) => {
+    const results = await runWithConcurrency(
+      activeStores,
+      concurrency,
+      async (store) => {
         try {
           const data = await this.request<T>({
             ...options,
@@ -259,7 +397,7 @@ export class WbClientService {
             statusCode,
           };
         }
-      }),
+      },
     );
 
     return results.map((res, index) => {

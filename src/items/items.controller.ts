@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ItemsService } from './items.service';
 import {
@@ -24,6 +25,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
+@ApiTags('Items')
+@ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.LEAD_ADMIN, Role.ADMIN)
 @Controller('items')
@@ -34,18 +37,26 @@ export class ItemsController {
   // Cards
   // -------------------------------------------------------------
 
+  @ApiOperation({ summary: 'List product cards (with pagination & filter)' })
   @Post('cards/list')
   async getCards(@Body() dto: GetCardsDto) {
     return this.itemsService.getCards(dto);
   }
 
+  @ApiOperation({ summary: 'Create new product cards' })
   @Post('cards')
-  async createCard(@Query('storeId') storeId: string, @Body() cards: any[]) {
+  async createCard(
+    @Query('storeId') storeId: string,
+    @Body() cards: Record<string, unknown>[],
+  ) {
     return this.itemsService.createCard(storeId, cards);
   }
 
   @Patch('cards')
-  async updateCard(@Query('storeId') storeId: string, @Body() cards: any[]) {
+  async updateCard(
+    @Query('storeId') storeId: string,
+    @Body() cards: Record<string, unknown>[],
+  ) {
     return this.itemsService.updateCard(storeId, cards);
   }
 
@@ -238,7 +249,10 @@ export class ItemsController {
   }
 
   @Post('tags')
-  async createTag(@Query('storeId') storeId: string, @Body() body: any) {
+  async createTag(
+    @Query('storeId') storeId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
     return this.itemsService.createTag(storeId, body);
   }
 
@@ -246,7 +260,7 @@ export class ItemsController {
   async updateTag(
     @Query('storeId') storeId: string,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: any,
+    @Body() body: Record<string, unknown>,
   ) {
     return this.itemsService.updateTag(storeId, id, body);
   }

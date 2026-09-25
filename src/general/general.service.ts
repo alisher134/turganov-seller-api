@@ -124,7 +124,7 @@ export class GeneralService {
     });
   }
 
-  async inviteWbUser(storeId: string, body: any) {
+  async inviteWbUser(storeId: string, body: Record<string, unknown>) {
     if (!storeId || storeId === 'all') {
       throw new BadRequestException(
         'Для создания приглашения укажите конкретный storeId',

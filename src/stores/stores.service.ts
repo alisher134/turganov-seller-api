@@ -22,10 +22,15 @@ export class StoresService {
   ) {}
 
   private get secret(): string {
-    return (
-      this.configService.get<string>('JWT_SECRET') ||
-      'default-turganov-seller-secret-key-32b'
-    );
+    const secret =
+      this.configService.get<string>('TOKEN_ENCRYPTION_KEY') ||
+      this.configService.get<string>('JWT_SECRET');
+    if (!secret) {
+      throw new Error(
+        'Neither TOKEN_ENCRYPTION_KEY nor JWT_SECRET is configured. Cannot encrypt store tokens.',
+      );
+    }
+    return secret;
   }
 
   async createStore(dto: CreateStoreDto) {

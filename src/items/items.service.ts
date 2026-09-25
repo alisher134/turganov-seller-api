@@ -1,6 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { WbTokenCategory } from '@prisma/client';
-import { WbClientService } from '../wb-client/wb-client.service';
+import { Injectable } from '@nestjs/common';
 import {
   GetCardsDto,
   UploadPricesDto,
@@ -8,436 +6,194 @@ import {
   CreateWarehouseDto,
   UpdateWarehouseDto,
 } from './dto';
+import {
+  CardsService,
+  PricesService,
+  WarehousesService,
+  ContentDirectoriesService,
+} from './services';
 
+/**
+ * Facade service for Items module.
+ * Coordinates CardsService, PricesService, WarehousesService, and ContentDirectoriesService.
+ */
 @Injectable()
 export class ItemsService {
-  constructor(private readonly wbClient: WbClientService) {}
+  constructor(
+    private readonly cardsService: CardsService,
+    private readonly pricesService: PricesService,
+    private readonly warehousesService: WarehousesService,
+    private readonly contentDirectoriesService: ContentDirectoriesService,
+  ) {}
 
   // -------------------------------------------------------------
   // Product Cards
   // -------------------------------------------------------------
 
-  async getCards(dto: GetCardsDto) {
-    const { storeId, settings } = dto;
-    const body = {
-      settings: settings || {
-        cursor: { limit: 100 },
-        filter: { withPhoto: -1 },
-      },
-    };
-
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'content',
-        path: '/content/v2/get/cards/list',
-        method: 'POST',
-        category: WbTokenCategory.CONTENT,
-        body,
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'content',
-      path: '/content/v2/get/cards/list',
-      method: 'POST',
-      category: WbTokenCategory.CONTENT,
-      body,
-    });
+  getCards(dto: GetCardsDto) {
+    return this.cardsService.getCards(dto);
   }
 
-  async createCard(storeId: string, cards: any[]) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: '/content/v2/cards/upload',
-      method: 'POST',
-      category: WbTokenCategory.CONTENT,
-      body: cards,
-    });
+  createCard(storeId: string, cards: Record<string, unknown>[]) {
+    return this.cardsService.createCard(storeId, cards);
   }
 
-  async updateCard(storeId: string, cards: any[]) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: '/content/v2/cards/update',
-      method: 'POST',
-      category: WbTokenCategory.CONTENT,
-      body: cards,
-    });
+  updateCard(storeId: string, cards: Record<string, unknown>[]) {
+    return this.cardsService.updateCard(storeId, cards);
   }
 
-  async getCardLimits(storeId?: string) {
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'content',
-        path: '/content/v2/cards/limits',
-        method: 'GET',
-        category: WbTokenCategory.CONTENT,
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'content',
-      path: '/content/v2/cards/limits',
-      method: 'GET',
-      category: WbTokenCategory.CONTENT,
-    });
+  getCardLimits(storeId?: string) {
+    return this.cardsService.getCardLimits(storeId);
   }
 
-  async getCardErrors(storeId?: string, locale: string = 'ru') {
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'content',
-        path: '/content/v2/cards/error/list',
-        method: 'GET',
-        category: WbTokenCategory.CONTENT,
-        query: { locale },
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'content',
-      path: '/content/v2/cards/error/list',
-      method: 'GET',
-      category: WbTokenCategory.CONTENT,
-      query: { locale },
-    });
+  getCardErrors(storeId?: string, locale: string = 'ru') {
+    return this.cardsService.getCardErrors(storeId, locale);
   }
 
-  async generateBarcodes(storeId: string, count: number = 1) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: '/content/v2/barcodes',
-      method: 'POST',
-      category: WbTokenCategory.CONTENT,
-      body: { count },
-    });
+  generateBarcodes(storeId: string, count: number = 1) {
+    return this.cardsService.generateBarcodes(storeId, count);
   }
 
   // -------------------------------------------------------------
   // Prices and Discounts
   // -------------------------------------------------------------
 
-  async getPrices(
+  getPrices(
     storeId?: string,
     limit: number = 100,
     offset: number = 0,
     filterNmId?: number,
   ) {
-    const query: Record<string, any> = { limit, offset };
-    if (filterNmId) query.filterNmID = filterNmId;
-
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'prices',
-        path: '/api/v2/list/goods/filter',
-        method: 'GET',
-        category: WbTokenCategory.PRICES,
-        query,
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'prices',
-      path: '/api/v2/list/goods/filter',
-      method: 'GET',
-      category: WbTokenCategory.PRICES,
-      query,
-    });
+    return this.pricesService.getPrices(storeId, limit, offset, filterNmId);
   }
 
-  async uploadPrices(storeId: string, dto: UploadPricesDto) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'prices',
-      path: '/api/v2/upload/task',
-      method: 'POST',
-      category: WbTokenCategory.PRICES,
-      body: dto.data,
-    });
+  uploadPrices(storeId: string, dto: UploadPricesDto) {
+    return this.pricesService.uploadPrices(storeId, dto);
   }
 
-  async getPriceUploadTasks(storeId?: string) {
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'prices',
-        path: '/api/v2/history/tasks',
-        method: 'GET',
-        category: WbTokenCategory.PRICES,
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'prices',
-      path: '/api/v2/history/tasks',
-      method: 'GET',
-      category: WbTokenCategory.PRICES,
-    });
+  getPriceUploadTasks(storeId?: string) {
+    return this.pricesService.getPriceUploadTasks(storeId);
   }
 
   // -------------------------------------------------------------
   // Warehouses and Stocks
   // -------------------------------------------------------------
 
-  async getWarehouses(storeId?: string) {
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'marketplace',
-        path: '/api/v3/warehouses',
-        method: 'GET',
-        category: WbTokenCategory.MARKETPLACE,
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'marketplace',
-      path: '/api/v3/warehouses',
-      method: 'GET',
-      category: WbTokenCategory.MARKETPLACE,
-    });
+  getWarehouses(storeId?: string) {
+    return this.warehousesService.getWarehouses(storeId);
   }
 
-  async createWarehouse(storeId: string, dto: CreateWarehouseDto) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'marketplace',
-      path: '/api/v3/warehouses',
-      method: 'POST',
-      category: WbTokenCategory.MARKETPLACE,
-      body: dto,
-    });
+  createWarehouse(storeId: string, dto: CreateWarehouseDto) {
+    return this.warehousesService.createWarehouse(storeId, dto);
   }
 
-  async updateWarehouse(
+  updateWarehouse(
     storeId: string,
     warehouseId: number,
     dto: UpdateWarehouseDto,
   ) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'marketplace',
-      path: `/api/v3/warehouses/${warehouseId}`,
-      method: 'PUT',
-      category: WbTokenCategory.MARKETPLACE,
-      body: dto,
-    });
+    return this.warehousesService.updateWarehouse(storeId, warehouseId, dto);
   }
 
-  async deleteWarehouse(storeId: string, warehouseId: number) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'marketplace',
-      path: `/api/v3/warehouses/${warehouseId}`,
-      method: 'DELETE',
-      category: WbTokenCategory.MARKETPLACE,
-    });
+  deleteWarehouse(storeId: string, warehouseId: number) {
+    return this.warehousesService.deleteWarehouse(storeId, warehouseId);
   }
 
-  async getOffices(storeId: string) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'marketplace',
-      path: '/api/v3/offices',
-      method: 'GET',
-      category: WbTokenCategory.MARKETPLACE,
-    });
+  getOffices(storeId: string) {
+    return this.warehousesService.getOffices(storeId);
   }
 
-  async getStocks(storeId: string, warehouseId: number, skus: string[]) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'marketplace',
-      path: `/api/v3/stocks/${warehouseId}`,
-      method: 'POST',
-      category: WbTokenCategory.MARKETPLACE,
-      body: { skus },
-    });
+  getStocks(storeId: string, warehouseId: number, skus: string[]) {
+    return this.warehousesService.getStocks(storeId, warehouseId, skus);
   }
 
-  async updateStocks(
-    storeId: string,
-    warehouseId: number,
-    dto: UpdateStocksDto,
+  updateStocks(storeId: string, warehouseId: number, dto: UpdateStocksDto) {
+    return this.warehousesService.updateStocks(storeId, warehouseId, dto);
+  }
+
+  deleteStocks(storeId: string, warehouseId: number, skus: string[]) {
+    return this.warehousesService.deleteStocks(storeId, warehouseId, skus);
+  }
+
+  // -------------------------------------------------------------
+  // Directories & Metadata
+  // -------------------------------------------------------------
+
+  getParentCategories(storeId?: string, locale: string = 'ru') {
+    return this.contentDirectoriesService.getParentCategories(storeId, locale);
+  }
+
+  getSubjects(
+    storeId?: string,
+    name?: string,
+    limit: number = 1000,
+    offset: number = 0,
+    parentId?: number,
   ) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
+    return this.contentDirectoriesService.getSubjects(
       storeId,
-      service: 'marketplace',
-      path: `/api/v3/stocks/${warehouseId}`,
-      method: 'PUT',
-      category: WbTokenCategory.MARKETPLACE,
-      body: dto,
-    });
+      name,
+      limit,
+      offset,
+      parentId,
+    );
   }
 
-  async deleteStocks(storeId: string, warehouseId: number, skus: string[]) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'marketplace',
-      path: `/api/v3/stocks/${warehouseId}`,
-      method: 'DELETE',
-      category: WbTokenCategory.MARKETPLACE,
-      body: { skus },
-    });
-  }
-
-  // -------------------------------------------------------------
-  // Categories and Directories
-  // -------------------------------------------------------------
-
-  async getParentCategories(storeId?: string, locale: string = 'ru') {
-    return this.callDirectory(storeId, '/content/v2/object/parent/all', 'GET', {
-      locale,
-    });
-  }
-
-  async getAllCategories(
+  getAllCategories(
     storeId?: string,
     name?: string,
     limit: number = 1000,
     locale: string = 'ru',
   ) {
-    const query: Record<string, any> = { limit, locale };
-    if (name) query.name = name;
-    return this.callDirectory(storeId, '/content/v2/object/all', 'GET', query);
+    return this.contentDirectoriesService.getAllCategories(
+      storeId,
+      name,
+      limit,
+      locale,
+    );
   }
 
-  async getCharacteristics(
+  getCharacteristics(
     storeId: string,
     subjectId: number,
     locale: string = 'ru',
   ) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
+    return this.contentDirectoriesService.getCharacteristics(
       storeId,
-      service: 'content',
-      path: `/content/v2/object/charcs/${subjectId}`,
-      method: 'GET',
-      category: WbTokenCategory.CONTENT,
-      query: { locale },
-    });
-  }
-
-  async getColors(storeId?: string, locale: string = 'ru') {
-    return this.callDirectory(storeId, '/content/v2/directory/colors', 'GET', {
+      subjectId,
       locale,
-    });
-  }
-
-  async getCountries(storeId?: string, locale: string = 'ru') {
-    return this.callDirectory(
-      storeId,
-      '/content/v2/directory/countries',
-      'GET',
-      { locale },
     );
   }
 
-  async getBrands(storeId?: string, search?: string) {
-    const query: Record<string, any> = {};
-    if (search) query.search = search;
-    return this.callDirectory(storeId, '/api/content/v1/brands', 'GET', query);
+  getColors(storeId?: string, locale: string = 'ru') {
+    return this.contentDirectoriesService.getColors(storeId, locale);
+  }
+
+  getCountries(storeId?: string, locale: string = 'ru') {
+    return this.contentDirectoriesService.getCountries(storeId, locale);
+  }
+
+  getBrands(storeId?: string, search?: string) {
+    return this.contentDirectoriesService.getBrands(storeId, search);
   }
 
   // -------------------------------------------------------------
   // Tags
   // -------------------------------------------------------------
 
-  async getTags(storeId: string) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: '/content/v2/tags',
-      method: 'GET',
-      category: WbTokenCategory.CONTENT,
-    });
+  getTags(storeId: string) {
+    return this.contentDirectoriesService.getTags(storeId);
   }
 
-  async createTag(storeId: string, body: any) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: '/content/v2/tag',
-      method: 'POST',
-      category: WbTokenCategory.CONTENT,
-      body,
-    });
+  createTag(storeId: string, body: Record<string, unknown>) {
+    return this.contentDirectoriesService.createTag(storeId, body);
   }
 
-  async updateTag(storeId: string, id: number, body: any) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: `/content/v2/tag/${id}`,
-      method: 'PATCH',
-      category: WbTokenCategory.CONTENT,
-      body,
-    });
+  updateTag(storeId: string, id: number, body: Record<string, unknown>) {
+    return this.contentDirectoriesService.updateTag(storeId, id, body);
   }
 
-  async deleteTag(storeId: string, id: number) {
-    this.ensureStoreId(storeId);
-    return this.wbClient.request({
-      storeId,
-      service: 'content',
-      path: `/content/v2/tag/${id}`,
-      method: 'DELETE',
-      category: WbTokenCategory.CONTENT,
-    });
-  }
-
-  private async callDirectory(
-    storeId?: string,
-    path: string = '',
-    method: 'GET' | 'POST' = 'GET',
-    query?: Record<string, any>,
-  ) {
-    if (storeId && storeId !== 'all') {
-      return this.wbClient.request({
-        storeId,
-        service: 'content',
-        path,
-        method,
-        category: WbTokenCategory.CONTENT,
-        query,
-      });
-    }
-
-    return this.wbClient.executeForAllStores({
-      service: 'content',
-      path,
-      method,
-      category: WbTokenCategory.CONTENT,
-      query,
-    });
-  }
-
-  private ensureStoreId(storeId?: string) {
-    if (!storeId || storeId === 'all') {
-      throw new BadRequestException(
-        'Для этой операции необходимо указать конкретный storeId',
-      );
-    }
+  deleteTag(storeId: string, id: number) {
+    return this.contentDirectoriesService.deleteTag(storeId, id);
   }
 }

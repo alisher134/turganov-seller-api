@@ -78,7 +78,8 @@ export class ReportsService {
   }
 
   async getPaidStorage(storeId?: string, dateFrom?: string, dateTo?: string) {
-    const query: Record<string, any> = {};
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {};
     if (dateFrom) query.dateFrom = dateFrom;
     if (dateTo) query.dateTo = dateTo;
 
@@ -103,7 +104,8 @@ export class ReportsService {
   }
 
   async getRegionSales(storeId?: string, dateFrom?: string, dateTo?: string) {
-    const query: Record<string, any> = {};
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {};
     if (dateFrom) query.dateFrom = dateFrom;
     if (dateTo) query.dateTo = dateTo;
 
@@ -128,7 +130,8 @@ export class ReportsService {
   }
 
   async getGoodsReturn(storeId?: string, dateFrom?: string) {
-    const query: Record<string, any> = {};
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {};
     if (dateFrom) query.dateFrom = dateFrom;
 
     if (storeId && storeId !== 'all') {
@@ -152,7 +155,8 @@ export class ReportsService {
   }
 
   async getDeductions(storeId?: string, dateFrom?: string, dateTo?: string) {
-    const query: Record<string, any> = {};
+    const query: Record<string, string | number | boolean | undefined | null> =
+      {};
     if (dateFrom) query.dateFrom = dateFrom;
     if (dateTo) query.dateTo = dateTo;
 
